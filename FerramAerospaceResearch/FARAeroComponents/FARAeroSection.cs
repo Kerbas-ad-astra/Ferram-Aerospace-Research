@@ -1,5 +1,5 @@
 ﻿/*
-Ferram Aerospace Research v0.15.5.4 "Hoerner"
+Ferram Aerospace Research v0.15.5.7 "Johnson"
 =========================
 Aerodynamics model for Kerbal Space Program
 
@@ -82,15 +82,22 @@ namespace FerramAerospaceResearch.FARAeroComponents
             public float dragFactor;    //sum of these should add up to 1
         }
 
-        public FARAeroSection()
+        public static FARAeroSection CreateNewAeroSection()
         {
-            xForcePressureAoA0 = new FARFloatCurve(6);
-            xForcePressureAoA180 = new FARFloatCurve(6);
-            xForceSkinFriction = new FARFloatCurve(3);
-            partData = new List<PartData>();
-            handledAeroModulesIndexDict = new Dictionary<FARAeroPartModule, int>();
+            FARAeroSection section = new FARAeroSection();
+
+            section.xForcePressureAoA0 = new FARFloatCurve(6);
+            section.xForcePressureAoA180 = new FARFloatCurve(6);
+            section.xForceSkinFriction = new FARFloatCurve(3);
+            section.partData = new List<PartData>();
+            section.handledAeroModulesIndexDict = new Dictionary<FARAeroPartModule, int>(ObjectReferenceEqualityComparer<FARAeroPartModule>.Default);
+
             GenerateCrossFlowDragCurve();
+
+            return section;
         }
+
+        private FARAeroSection() { }
 
         public void UpdateAeroSection(float potentialFlowNormalForce, float viscCrossflowDrag, float diameter, float flatnessRatio, float hypersonicMomentForward, float hypersonicMomentBackward,
             Vector3 centroidWorldSpace, Vector3 xRefVectorWorldSpace, Vector3 nRefVectorWorldSpace, Matrix4x4 vesselToWorldMatrix, Vector3 vehicleMainAxis, List<FARAeroPartModule> moduleList,
@@ -198,24 +205,24 @@ namespace FerramAerospaceResearch.FARAeroComponents
             //increase merge factor each time we merge to maintain relative strength of sections
             mergeFactor += 1;
 
-            float invMergeFactor = 1 / (mergeFactor + 1);
+            float invMergeFactorP1 = 1 / (mergeFactor + 1);
 
-            //merge simple factors
+            //add simple factors
             potentialFlowNormalForce += otherSection.potentialFlowNormalForce;
             viscCrossflowDrag += otherSection.viscCrossflowDrag;
             hypersonicMomentForward += otherSection.hypersonicMomentForward;
             hypersonicMomentBackward += otherSection.hypersonicMomentBackward;
 
-            flatnessRatio = invMergeFactor * (flatnessRatio * mergeFactor + otherSection.flatnessRatio);
-            invFlatnessRatio = invMergeFactor * (invFlatnessRatio * mergeFactor + otherSection.invFlatnessRatio);
-            diameter = invMergeFactor * (diameter * mergeFactor + otherSection.diameter);
+            flatnessRatio = invMergeFactorP1 * (flatnessRatio * mergeFactor + otherSection.flatnessRatio);
+            invFlatnessRatio = invMergeFactorP1 * (invFlatnessRatio * mergeFactor + otherSection.invFlatnessRatio);
+            diameter = invMergeFactorP1 * (diameter * mergeFactor + otherSection.diameter);
 
             //merge the curves; don't scale because these are actual drag values
             xForcePressureAoA0.AddCurve(otherSection.xForcePressureAoA0);
             xForcePressureAoA180.AddCurve(otherSection.xForcePressureAoA180);
             xForceSkinFriction.AddCurve(otherSection.xForceSkinFriction);
 
-            //prep old data for merging
+            //prep old part data for merging
             for (int i = 0; i < partData.Count; ++i)
             {
                 PartData oldData = partData[i];
@@ -249,6 +256,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
                     tmpOtherData.nRefVectorPartSpace = (tmpOtherData.nRefVectorPartSpace);
                     tmpOtherData.dragFactor = invMergeFactor * (tmpOtherData.dragFactor);       //this will already be scaled down at the end
                     */
+                    tmpOtherData.centroidPartSpace *= mergeFactorP1;      //needs to be scaled this way to place the centroid in the correct location
                     partData.Add(tmpOtherData);
 
                     handledAeroModulesIndexDict.Add(tmpOtherData.aeroModule, partData.Count - 1);
@@ -258,8 +266,8 @@ namespace FerramAerospaceResearch.FARAeroComponents
             for (int i = 0; i < partData.Count; ++i)
             {
                 PartData newData = partData[i];
-                newData.dragFactor *= invMergeFactor;      //now scale everything back down to sane levels
-                newData.centroidPartSpace *= invMergeFactor;
+                newData.dragFactor *= invMergeFactorP1;      //now scale everything back down to sane levels
+                newData.centroidPartSpace *= invMergeFactorP1;
                 newData.xRefVectorPartSpace.Normalize();
                 newData.nRefVectorPartSpace.Normalize();
                 partData[i] = newData;
@@ -276,7 +284,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
             handledAeroModulesIndexDict.Clear();
         }
         
-        public void PredictionCalculateAeroForces(float atmDensity, float machNumber, float reynoldsPerUnitLength, float skinFrictionDrag, Vector3 vel, ferram4.FARCenterQuery center)
+        public void PredictionCalculateAeroForces(float atmDensity, float machNumber, float reynoldsPerUnitLength, float pseudoKnudsenNumber, float skinFrictionDrag, Vector3 vel, ferram4.FARCenterQuery center)
         {
             if (partData.Count == 0)
                 return;
@@ -343,6 +351,9 @@ namespace FerramAerospaceResearch.FARAeroComponents
             nForce *= normalForceFactor;
 
             double xForce = -skinFrictionForce * Math.Sign(cosAoA) * cosSqrAoA;
+            double localVelForce = xForce * pseudoKnudsenNumber;
+            xForce -= localVelForce;
+            
             float moment = (float)(cosAoA * sinAoA);
 
 
@@ -385,6 +396,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
             moment /= normalForceFactor;
 
             Vector3 forceVector = (float)xForce * xRefVector + (float)nForce * localNormalForceVec;
+            forceVector += (float)localVelForce * velLocalNorm;
             Vector3 torqueVector = Vector3.Cross(xRefVector, localNormalForceVec) * moment;
 
             Matrix4x4 localToWorld = aeroModule.part.partTransform.localToWorldMatrix;
@@ -416,7 +428,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
             center.AddTorque(torqueVector);
         }
 
-        public void FlightCalculateAeroForces(float atmDensity, float machNumber, float reynoldsPerUnitLength, float skinFrictionDrag)
+        public void FlightCalculateAeroForces(float atmDensity, float machNumber, float reynoldsPerUnitLength, float pseudoKnudsenNumber, float skinFrictionDrag)
         {
 
             double skinFrictionForce = skinFrictionDrag * xForceSkinFriction.Evaluate(machNumber);      //this will be the same for each part, so why recalc it multiple times?
@@ -439,7 +451,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
 
                 Vector3 angVelLocal = aeroModule.partLocalAngVel;
 
-                //velLocal += Vector3.Cross(angVelLocal, data.centroidPartSpace);       //some transform issue here, needs investigation
+                velLocal += Vector3.Cross(data.centroidPartSpace, angVelLocal);       //some transform issue here, needs investigation
                 Vector3 velLocalNorm = velLocal.normalized;
 
                 Vector3 localNormalForceVec = Vector3.ProjectOnPlane(-velLocalNorm, xRefVector).normalized;
@@ -475,8 +487,11 @@ namespace FerramAerospaceResearch.FARAeroComponents
                 nForce *= normalForceFactor;
 
                 double xForce = -skinFrictionForce * Math.Sign(cosAoA) * cosSqrAoA;
+                double localVelForce = xForce * pseudoKnudsenNumber;
+                xForce -= localVelForce;
+
                 float moment = (float)(cosAoA * sinAoA);
-                float dampingMoment = 0.25f * moment;
+                float dampingMoment = 4f * moment;
 
                 if (cosAoA > 0)
                 {
@@ -517,12 +532,23 @@ namespace FerramAerospaceResearch.FARAeroComponents
                     dampingMoment *= momentFactor;
                 }
                 moment /= normalForceFactor;
-                dampingMoment = Math.Abs(dampingMoment);
-                dampingMoment += (float)Math.Abs(skinFrictionForce) * 0.1f;
+                dampingMoment = Math.Abs(dampingMoment) * 0.1f;
+                //dampingMoment += (float)Math.Abs(skinFrictionForce) * 0.1f;
+                float rollDampingMoment = (float)(skinFrictionForce * 0.5 * diameter);      //skin friction force times avg moment arm for vehicle
+                rollDampingMoment *= (0.75f + flatnessRatio * 0.25f);     //this is just an approximation for now
 
                 Vector3 forceVector = (float)xForce * xRefVector + (float)nForce * localNormalForceVec;
+                forceVector += (float)localVelForce * velLocalNorm;
+
                 Vector3 torqueVector = Vector3.Cross(xRefVector, localNormalForceVec) * moment;
-                torqueVector -= dampingMoment * angVelLocal;
+
+                Vector3 axialAngLocalVel = Vector3.Dot(xRefVector, angVelLocal) * xRefVector;
+                Vector3 nonAxialAngLocalVel = angVelLocal - axialAngLocalVel;
+
+                if (velLocal.sqrMagnitude > 0.001f)
+                    torqueVector -= (dampingMoment * nonAxialAngLocalVel) + (rollDampingMoment * axialAngLocalVel * axialAngLocalVel.magnitude) / velLocal.sqrMagnitude;
+                else
+                    torqueVector -= (dampingMoment * nonAxialAngLocalVel) + (rollDampingMoment * axialAngLocalVel * axialAngLocalVel.magnitude) / 0.001f;
 
                 //float dynPresAndScaling = 0.0005f * atmDensity * velLocal.sqrMagnitude * data.dragFactor;        //dyn pres and N -> kN conversion
 

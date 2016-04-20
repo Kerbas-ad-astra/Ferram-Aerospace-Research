@@ -1,5 +1,5 @@
 ﻿/*
-Ferram Aerospace Research v0.15.5.4 "Hoerner"
+Ferram Aerospace Research v0.15.5.7 "Johnson"
 =========================
 Aerodynamics model for Kerbal Space Program
 
@@ -165,8 +165,17 @@ namespace FerramAerospaceResearch.FARAeroComponents
             {
                 worldSpaceAeroForce = Vector3.zero;
                 worldSpaceTorque = Vector3.zero;
+
+                totalWorldSpaceAeroForce = Vector3.zero;
+
                 partLocalForce = Vector3.zero;
                 partLocalTorque = Vector3.zero;
+
+                partLocalAngVel = Vector3.zero;
+                partLocalVel = Vector3.zero;
+                partLocalVelNorm = Vector3.zero;
+
+                UpdateAeroDisplay();
             }
         }
 
@@ -226,7 +235,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
             }
 
             double areaForStress = projectedArea.totalArea / 6;
-            if (areaForStress <= 0.1 || part.Modules.Contains("RealChuteFAR") || part.Modules.Contains("ModuleAblator"))
+            if (!FARDebugValues.allowStructuralFailures || areaForStress <= 0.1 || part.Modules.Contains("RealChuteFAR") || part.Modules.Contains("ModuleAblator"))
             {
                 partForceMaxY = double.MaxValue;
                 partForceMaxXZ = double.MaxValue;
@@ -277,8 +286,8 @@ namespace FerramAerospaceResearch.FARAeroComponents
             partLocalForce = Vector3.zero;
             partLocalTorque = Vector3.zero;
 
-            if (!part.Modules.Contains("ModuleAeroSurface"))
-                part.dragModel = Part.DragModel.CYLINDRICAL;
+            //if (!part.Modules.Contains("ModuleAeroSurface"))
+            //    part.dragModel = Part.DragModel.CYLINDRICAL;
 
             if(FARDebugValues.allowStructuralFailures)
             {
@@ -535,6 +544,10 @@ namespace FerramAerospaceResearch.FARAeroComponents
 
             //Matrix4x4 matrix = partTransform.worldToLocalMatrix;
             Rigidbody rb = part.Rigidbody;
+
+            if (rb == null)
+                return;
+
             //rb.drag = 0;
             partLocalVel = rb.velocity + frameVel
                         - FARWind.GetWind(FARAeroUtil.CurrentBody, part, rb.position);      //world velocity
@@ -597,7 +610,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
                 if (vessel)
                 {
                     vessel.SendMessage("AerodynamicFailureStatus");
-                    string msg = String.Format("[{0:D2}:{1:D2}:{2:D2}] {3} failed due to aerodynamic stresses.", FlightLogger.met_hours, FlightLogger.met_mins, FlightLogger.met_secs, part.partInfo.title);
+                    string msg = String.Format("[{0}] {1} failed due to aerodynamic stresses.", KSPUtil.PrintTimeStamp(FlightLogger.met), part.partInfo.title);
                     FlightLogger.eventLog.Add(msg); 
                     if (FARDebugValues.aeroFailureExplosions)
                     {
@@ -612,13 +625,13 @@ namespace FerramAerospaceResearch.FARAeroComponents
             Vector3 worldDragArrow = Vector3.zero;
             Vector3 worldLiftArrow = Vector3.zero;
 
-            if (PhysicsGlobals.AeroForceDisplay || PhysicsGlobals.AeroDataDisplay)
+            if ((PhysicsGlobals.AeroForceDisplay || PhysicsGlobals.AeroDataDisplay) && !part.ShieldedFromAirstream)
             {
                 Vector3 worldVelNorm = partTransform.localToWorldMatrix.MultiplyVector(partLocalVelNorm);
                 worldDragArrow = Vector3.Dot(worldSpaceAeroForce, worldVelNorm) * worldVelNorm;
                 worldLiftArrow = worldSpaceAeroForce - worldDragArrow;
             }
-            if (PhysicsGlobals.AeroForceDisplay)
+            if (PhysicsGlobals.AeroForceDisplay && !part.ShieldedFromAirstream)
             {
                 if (liftArrow == null)
                     liftArrow = ArrowPointer.Create(partTransform, Vector3.zero, worldLiftArrow, worldLiftArrow.magnitude * PhysicsGlobals.AeroForceDisplayScale, FARGUI.GUIColors.GetColor(0), true);
@@ -666,7 +679,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
                 }
             }
 
-            if (PhysicsGlobals.AeroDataDisplay)
+            if (PhysicsGlobals.AeroDataDisplay && !part.ShieldedFromAirstream)
             {
                 if (!fieldsVisible)
                 {

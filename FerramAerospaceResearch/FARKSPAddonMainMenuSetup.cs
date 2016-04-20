@@ -44,62 +44,21 @@ Copyright 2015, Michael Ferrara, aka Ferram4
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
+using FerramAerospaceResearch.FARAeroComponents;
+using FerramAerospaceResearch.FARGUI;
+using ferram4;
 
-namespace FerramAerospaceResearch.FARThreading
+namespace FerramAerospaceResearch
 {
-    [KSPAddon(KSPAddon.Startup.Instantly, true)]
-    class ThreadSafeDebugLogger : MonoBehaviour
+    [KSPAddon(KSPAddon.Startup.MainMenu, true)]
+    class FARKSPAddonMainMenuSetup : MonoBehaviour
     {
-        static ThreadSafeDebugLogger _instance;
-        public static ThreadSafeDebugLogger Instance
+        void Start()
         {
-            get { return _instance; }
-        }
-
-        List<Exception> _exceptionsThrown;
-        List<string> _debugMessages;
-
-        void Awake()
-        {
-            _instance = this;
-            _exceptionsThrown = new List<Exception>();
-            _debugMessages = new List<string>();
-            GameObject.DontDestroyOnLoad(this.gameObject);
-        }
-
-        void Update()
-        {
-            if (_exceptionsThrown.Count > 0)
-            {
-                for (int i = 0; i < _exceptionsThrown.Count; i++)
-                    Debug.LogException(_exceptionsThrown[i]);
-
-                _exceptionsThrown.Clear();
-            }
-
-
-            if (_debugMessages.Count > 0)
-            {
-                System.Text.StringBuilder sB = new System.Text.StringBuilder();
-                for (int i = 0; i < _debugMessages.Count; i++)
-                    sB.AppendLine(_debugMessages[i]);
-
-                _debugMessages.Clear();
-
-                Debug.Log(sB.ToString());
-            }
-
-        }
-
-        public void RegisterMessage(string s)
-        {
-            _debugMessages.Add(s);
-        }
-        
-        public void RegisterException(Exception e)
-        {
-            _exceptionsThrown.Add(e);
+            FARSettingsScenarioModule.MainMenuBuildDefaultScenarioModule();
+            this.enabled = false;
         }
     }
 }

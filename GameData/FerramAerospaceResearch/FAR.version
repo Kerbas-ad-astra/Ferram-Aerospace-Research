@@ -1,6 +1,6 @@
 {
   "NAME"     : "Ferram Aerospace Research",
-  "DOWNLOAD" : "https://github.com/ferram4/Ferram-Aerospace-Research/releases"
+  "DOWNLOAD" : "https://github.com/ferram4/Ferram-Aerospace-Research/releases",
   "URL"      : "https://raw.githubusercontent.com/ferram4/Ferram-Aerospace-Research/master/GameData/FerramAerospaceResearch/FAR.version",
   "GITHUB" : {
     "USERNAME"   : "ferram4",
@@ -10,7 +10,7 @@
     "MAJOR" : 0,
     "MINOR" : 15,
     "PATCH" : 5,
-    "BUILD" : 4
+    "BUILD" : 7
   },
   "KSP_VERSION_MIN" : {
     "MAJOR" : 1,

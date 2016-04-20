@@ -1,5 +1,5 @@
 ﻿/*
-Ferram Aerospace Research v0.15.5.4 "Hoerner"
+Ferram Aerospace Research v0.15.5.7 "Johnson"
 =========================
 Aerodynamics model for Kerbal Space Program
 
@@ -175,9 +175,9 @@ namespace FerramAerospaceResearch.FARGUI.FARFlightGUI
             }
             if (activeFlightDataSections[4])        //Coeffs + refArea
             {
-                dataReadoutString.AppendLine(infoParameters.liftCoeff.ToString("F3"));
-                dataReadoutString.AppendLine(infoParameters.dragCoeff.ToString("F3"));
-                dataReadoutString.AppendLine(infoParameters.sideCoeff.ToString("F3"));
+                dataReadoutString.AppendLine(infoParameters.liftCoeff.ToString("F4"));
+                dataReadoutString.AppendLine(infoParameters.dragCoeff.ToString("F4"));
+                dataReadoutString.AppendLine(infoParameters.sideCoeff.ToString("F4"));
                 dataReadoutString.Append(infoParameters.refArea.ToString("F3"));
                 dataReadoutString.AppendLine(" m²");
                 dataReadoutString.AppendLine();
@@ -196,7 +196,7 @@ namespace FerramAerospaceResearch.FARGUI.FARFlightGUI
                 dataReadoutString.AppendLine(" hr⁻¹");
                 dataReadoutString.AppendLine((infoParameters.intakeAirFrac * 100).ToString("P1"));
                 dataReadoutString.Append(infoParameters.specExcessPower.ToString("N2"));
-                dataReadoutString.AppendLine(" m²/s²");
+                dataReadoutString.AppendLine(" W/kg");
                 dataReadoutString.AppendLine();
             }
             if (activeFlightDataSections[7])        //Range, Endurance est
@@ -228,10 +228,10 @@ namespace FerramAerospaceResearch.FARGUI.FARFlightGUI
 
             GUILayout.BeginHorizontal();
             GUILayout.BeginVertical();
-            GUILayout.Box(labelString, boxStyle, GUILayout.Width(120));
+            GUILayout.Box(labelString, boxStyle, GUILayout.Width(140));
             GUILayout.EndVertical();
             GUILayout.BeginVertical();
-            GUILayout.Box(dataString, boxStyle, GUILayout.Width(120));
+            GUILayout.Box(dataString, boxStyle, GUILayout.Width(140));
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
         }

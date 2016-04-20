@@ -1,4 +1,4 @@
-Ferram Aerospace Research v0.15.5.4 "Hoerner"
+Ferram Aerospace Research v0.15.5.7 "Johnson"
 =========================
 Aerodynamics model for Kerbal Space Program
 
@@ -64,6 +64,40 @@ Set all the other winglet/control surface values to zero
 
 CHANGELOG
 =======================================================
+
+0.15.5.7V "Johnson"------------------------------------  
+
+Tweak pitch and roll damping of fuselages to make more logical sense; excessive roll damping at high dynamic pressures for wingless vehicles has been fixed  
+Change units for specific excess power in the Flight Data readout to be W/kg on the basis that it makes more logical sense than m^2/s^3  
+
+Fix a critical error that prevented voxelizations of Kerbals or any vehicles that had Kerbals riding in a command seat  
+
+
+0.15.5.6V "Jacobs"------------------------------------  
+
+Update to MM 2.6.18
+
+Fix more negative sonic drag issues  
+Fix unrealistically low sonic drag  
+Fix failure to load saved FAR data in flight  
+Fix unrealistically high numbers in indicated airspeed at higher Mach numbers  
+
+Lower critical Mach number for slender vehicles with sudden bulges and waviness in their cross-section  
+
+
+0.15.5.5V "Hugoniot"------------------------------------  
+
+Fix an inconsistency in calculations of sonic drag  
+Fix possibility of sonic drag resulting in negative drag coefficients on very blunt shapes  
+Generally increase sonic drag of blunt objects, generally decrease drag of slender objects  
+
+Fix water drag failing to function under complete submersion  
+Fix rare error where Procedural Fairings will not properly voxelize  
+Fix GetCurrentDensity method (for external mods) to return result consistent with simulation  
+Fix overheat interaction on load with ModuleCoreHeat  
+Fix FAR breaking on attempts to load Training or Scenario scenes  
+Fix spoilers and flaps not updating with settings in the editor  
+
 
 0.15.5.4V "Hoerner"------------------------------------  
 

@@ -1,5 +1,5 @@
 ﻿/*
-Ferram Aerospace Research v0.15.5.4 "Hoerner"
+Ferram Aerospace Research v0.15.5.7 "Johnson"
 =========================
 Aerodynamics model for Kerbal Space Program
 
@@ -49,6 +49,7 @@ using UnityEngine;
 using FerramAerospaceResearch.FARAeroComponents;
 using FerramAerospaceResearch.FARGUI;
 using ferram4;
+using FerramAerospaceResearch.FARThreading;
 
 namespace FerramAerospaceResearch
 {
@@ -64,41 +65,9 @@ namespace FerramAerospaceResearch
             FARAnimOverrides.LoadAnimOverrides();
         }
 
-        private void Start()
+        private void Update()
         {
-            FARSettingsScenarioModule module = FARSettingsScenarioModule.Instance;
-            if (module == null)
-                Debug.LogError("FARSettingsScenarioModule could not be found.  Unable to start FAR aerodynamics");
-            this.enabled = false;
-
+            VoxelizationThreadpool.Instance.ExecuteMainThreadTasks();
         }
-
-        /*private void VesselUpdate(Vessel v)
-        {
-            if (v != null)
-            {
-                FARVesselAero vAero = v.gameObject.GetComponent<FARVesselAero>();
-                if (vAero == null)
-                {
-                    vAero = v.gameObject.AddComponent<FARVesselAero>();
-                }
-                vAero.VesselUpdate();
-
-                FlightGUI vGUI = v.gameObject.GetComponent<FlightGUI>();
-                if (vGUI == null)
-                {
-                    vGUI = v.gameObject.AddComponent<FlightGUI>();
-                }
-            }
-        }
-
-        private void OnDestroy()
-        {
-            GameEvents.onVesselGoOffRails.Remove(VesselUpdate);
-            GameEvents.onVesselChange.Remove(VesselUpdate);
-            //GameEvents.onVesselLoaded.Remove(VesselUpdate);
-            GameEvents.onVesselCreate.Remove(VesselUpdate);
-            GameEvents.onVesselWasModified.Remove(VesselUpdate);
-        }*/
     }
 }

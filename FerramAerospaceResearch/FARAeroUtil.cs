@@ -1,5 +1,5 @@
 ﻿/*
-Ferram Aerospace Research v0.15.5.4 "Hoerner"
+Ferram Aerospace Research v0.15.5.7 "Johnson"
 =========================
 Aerodynamics model for Kerbal Space Program
 
@@ -235,20 +235,7 @@ namespace FerramAerospaceResearch
 
             if (M <= 0)
                 return 1;
-            double value;
-            if (M <= 1)
-                value = StagnationPressureCalc(M);
-            else
-            {
-
-                value = (gamma + 1) * M;                  //Rayleigh Pitot Tube Formula; gives max stagnation pressure behind shock
-                value *= value;
-                value /= (4 * gamma * M * M - 2 * (gamma - 1));
-                value = Math.Pow(value, gamma / (gamma - 1));
-
-                value *= (1 - gamma + 2 * gamma * M * M);
-                value /= (gamma + 1);
-            }
+            double value = RayleighPitotTubeStagPressure(M);
             value--;                                //and now to convert to pressure coefficient
             value *= 2 / (gamma * M * M);
 
@@ -267,6 +254,24 @@ namespace FerramAerospaceResearch
 
             ratio = Math.Pow(ratio, gamma / (gamma - 1));
             return ratio;
+        }
+
+        public static double RayleighPitotTubeStagPressure(double M)
+        {
+            if (M <= 1)
+                return StagnationPressureCalc(M);
+
+            double gamma = CurrentBody.atmosphereAdiabaticIndex;
+            double value;
+            value = (gamma + 1) * M;                  //Rayleigh Pitot Tube Formula; gives max stagnation pressure behind shock
+            value *= value;
+            value /= (4 * gamma * M * M - 2 * (gamma - 1));
+            value = Math.Pow(value, gamma / (gamma - 1));
+
+            value *= (1 - gamma + 2 * gamma * M * M);
+            value /= (gamma + 1);
+
+            return value;
         }
 
         public static double PressureBehindShockCalc(double M)
@@ -575,29 +580,26 @@ namespace FerramAerospaceResearch
             return densityMultFactor;
         }
 
-        public static double GetCurrentDensity(CelestialBody body, double altitude, bool densitySmoothingAtOcean = true)
+        public static double GetCurrentDensity(Vessel v)
         {
-            double pressure, temperature;
-            pressure = FlightGlobals.getStaticPressure(altitude, body);
-            temperature = FlightGlobals.getExternalTemperature(altitude, body);
-
-            double density = FlightGlobals.getAtmDensity(pressure, temperature, body);
-
-            if (altitude < 0 && densitySmoothingAtOcean)
+            double density = 0;
+            double counter = 0;
+            for (int i = 0; i < v.parts.Count; i++)
             {
-                double densityMultFromOcean = Math.Max(-altitude, 1);
-                densityMultFromOcean *= UNDERWATER_DENSITY_FACTOR_MINUS_ONE;
-                densityMultFromOcean++;
-                density *= densityMultFromOcean;
+                Part p = v.parts[i];
+                if (p.physicalSignificance == Part.PhysicalSignificance.NONE)
+                    continue;
+
+                density += p.dynamicPressurekPa * (1.0 - p.submergedPortion);
+                density += p.submergedDynamicPressurekPa * p.submergedPortion;
+                counter++;
             }
+            if(counter > 0)
+                density /= counter;
+            density *= 2000;        //need answers in Pa, not kPa
+            density /= (v.srfSpeed * v.srfSpeed);
 
             return density;
-        }
-
-        // Vessel has altitude and cached pressure, and both density and sound speed need temperature
-        public static double GetCurrentDensity(Part p)
-        {
-            return (p.atmDensity * (1.0 - p.submergedPortion) + p.vessel.mainBody.oceanDensity * 1000 * p.submergedPortion * p.submergedDragScalar);// * fi.pseudoReDragMult);
         }
 
         public static double CalculateCurrentViscosity(double tempInK)
@@ -662,7 +664,7 @@ namespace FerramAerospaceResearch
                 double rarefiedGasVal = machNumber / reynoldsNumber;
                 if (rarefiedGasVal > 0.01)
                 {
-                    return (lamCf + (0.25 - lamCf) * (rarefiedGasVal - 0.01) / (0.99 + rarefiedGasVal)) * ROUGHNESS_SKIN_FRICTION_MULTIPLIER;
+                    return (lamCf + (0.075 - lamCf) * (rarefiedGasVal - 0.01) / (0.99 + rarefiedGasVal)) * ROUGHNESS_SKIN_FRICTION_MULTIPLIER;
                 }
                 return lamCf * ROUGHNESS_SKIN_FRICTION_MULTIPLIER;
             }

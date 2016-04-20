@@ -1,5 +1,5 @@
 ﻿/*
-Ferram Aerospace Research v0.15.5.4 "Hoerner"
+Ferram Aerospace Research v0.15.5.7 "Johnson"
 =========================
 Aerodynamics model for Kerbal Space Program
 
@@ -108,8 +108,8 @@ namespace FerramAerospaceResearch.FARAeroComponents
         List<Part> _vehiclePartList;
 
         List<GeometryPartModule> _currentGeoModules;
-        Dictionary<Part, PartTransformInfo> _partWorldToLocalMatrixDict = new Dictionary<Part, PartTransformInfo>();
-        Dictionary<FARAeroPartModule, FARAeroPartModule.ProjectedArea> _moduleAndAreasDict = new Dictionary<FARAeroPartModule, FARAeroPartModule.ProjectedArea>();
+        Dictionary<Part, PartTransformInfo> _partWorldToLocalMatrixDict = new Dictionary<Part, PartTransformInfo>(ObjectReferenceEqualityComparer<Part>.Default);
+        Dictionary<FARAeroPartModule, FARAeroPartModule.ProjectedArea> _moduleAndAreasDict = new Dictionary<FARAeroPartModule, FARAeroPartModule.ProjectedArea>(ObjectReferenceEqualityComparer<FARAeroPartModule>.Default);
 
         List<FARAeroPartModule> _currentAeroModules = new List<FARAeroPartModule>();
         List<FARAeroPartModule> _newAeroModules = new List<FARAeroPartModule>();
@@ -424,7 +424,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
                 try
                 {
                     //Actually voxelize it
-                    _voxel = new VehicleVoxel(_vehiclePartList, _currentGeoModules, _voxelCount);
+                    _voxel = VehicleVoxel.CreateNewVoxel(_vehiclePartList, _currentGeoModules, _voxelCount);
                     if (_vehicleCrossSection.Length < _voxel.MaxArrayLength)
                         _vehicleCrossSection = _voxel.EmptyCrossSectionArray;
 
@@ -621,7 +621,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
             for (int j = 0; j < areaSmoothingIterations; j++)
             {
                 for (int i = 0; i < numVals; i++)
-                    prevUncorrectedVals[i] = 0;     //set all the vals to 0 to prevent screwups between iterations
+                    prevUncorrectedVals[i] = vehicleCrossSection[frontIndex].area;     //set all the vals to 0 to prevent screwups between iterations
 
                 for (int i = frontIndex; i <= backIndex; i++)       //area smoothing pass
                 {
@@ -638,7 +638,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
                         if (i + k < backIndex)
                             futureUncorrectedVals[k] = vehicleCrossSection[i + k + 1].area;
                         else
-                            futureUncorrectedVals[k] = 0;
+                            futureUncorrectedVals[k] = vehicleCrossSection[backIndex].area;
                     }
                     curValue = 0;       //zero for coming calculations...
 
@@ -675,7 +675,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
             for (int j = 0; j < derivSmoothingIterations; j++)
             {
                 for (int i = 0; i < numVals; i++)
-                    prevUncorrectedVals[i] = 0;     //set all the vals to 0 to prevent screwups between iterations
+                    prevUncorrectedVals[i] = vehicleCrossSection[frontIndex].secondAreaDeriv;     //set all the vals to 0 to prevent screwups between iterations
 
                 for (int i = frontIndex; i <= backIndex; i++)       //deriv smoothing pass
                 {
@@ -692,7 +692,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
                         if (i + k < backIndex)
                             futureUncorrectedVals[k] = vehicleCrossSection[i + k + 1].secondAreaDeriv;
                         else
-                            futureUncorrectedVals[k] = 0;
+                            futureUncorrectedVals[k] = vehicleCrossSection[backIndex].secondAreaDeriv;
                     }
                     curValue = 0;       //zero for coming calculations...
 
@@ -1122,13 +1122,14 @@ namespace FerramAerospaceResearch.FARAeroComponents
 
             _criticalMach = criticalMachNumber * CriticalMachFactorForUnsmoothCrossSection(_vehicleCrossSection, finenessRatio, _sectionThickness);
 
-            float lowFinenessRatioSubsonicFactor = 1f;
-            lowFinenessRatioSubsonicFactor += 1f/(2f * (float)finenessRatio);
+            float lowFinenessRatioFactor = 1f;
+            lowFinenessRatioFactor += 1f/(1 + 0.5f * (float)finenessRatio);
+            float lowFinenessRatioBlendFactor = lowFinenessRatioFactor--;
 
             _moduleAndAreasDict.Clear();
             //_newAeroSections = new List<FARAeroSection>();
 
-            HashSet<FARAeroPartModule> tmpAeroModules = new HashSet<FARAeroPartModule>();
+            HashSet<FARAeroPartModule> tmpAeroModules = new HashSet<FARAeroPartModule>(ObjectReferenceEqualityComparer<FARAeroPartModule>.Default);
             _sonicDragArea = 0;
 
             if (_newAeroSections.Capacity < numSections + 1)
@@ -1165,7 +1166,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
                 }
 
                 if (currentSection == null)
-                    currentSection = new FARAeroSection();
+                    currentSection = FARAeroSection.CreateNewAeroSection();
 
                 FARFloatCurve xForcePressureAoA0 = currentSection.xForcePressureAoA0;
                 FARFloatCurve xForcePressureAoA180 = currentSection.xForcePressureAoA180;
@@ -1253,23 +1254,25 @@ namespace FerramAerospaceResearch.FARAeroComponents
                 double cPSonicForward, cPSonicBackward;
 
                 cPSonicForward = _vehicleCrossSection[index].cpSonicForward;
-                if (index > front)
+                /*if (index > front)
                 {
                     cPSonicForward += _vehicleCrossSection[index - 1].cpSonicForward;
                     cPSonicForward *= 0.5;
-                }
+                }*/
 
                 cPSonicBackward = _vehicleCrossSection[index].cpSonicBackward;
-                if (index < back)
+                /*if (index < back)
                 {
                     cPSonicBackward += _vehicleCrossSection[index + 1].cpSonicBackward;
                     cPSonicBackward *= 0.5;
-                }
+                }*/
+
+                double areaForForces = ((curArea + prevArea) - (nextArea + curArea)) * 0.5;
 
                 if (sonicBaseDrag > 0)      //occurs with increase in area; force applied at 180 AoA
                 {
-                    xForcePressureAoA0.SetPoint(0, new Vector3d(_criticalMach, (0.325f * hypersonicDragForward * hypersonicDragForwardFrac) * lowFinenessRatioSubsonicFactor, 0));    //hypersonic drag used as a proxy for effects due to flow separation
-                    xForcePressureAoA180.SetPoint(0, new Vector3d(_criticalMach, (sonicBaseDrag * 0.2f - (0.325f * hypersonicDragBackward * hypersonicDragBackwardFrac)) * lowFinenessRatioSubsonicFactor, 0));
+                    xForcePressureAoA0.SetPoint(0, new Vector3d(_criticalMach, (0.325f * hypersonicDragForward * hypersonicDragForwardFrac) * lowFinenessRatioFactor, 0));    //hypersonic drag used as a proxy for effects due to flow separation
+                    xForcePressureAoA180.SetPoint(0, new Vector3d(_criticalMach, (sonicBaseDrag * 0.2f - (0.325f * hypersonicDragBackward * hypersonicDragBackwardFrac)) * lowFinenessRatioFactor, 0));
 
 
                     hypersonicDragBackwardFrac += 1f;       //avg fracs with 1 to get intermediate frac
@@ -1278,15 +1281,20 @@ namespace FerramAerospaceResearch.FARAeroComponents
                     hypersonicDragForwardFrac += 1f;
                     hypersonicDragForwardFrac *= 0.5f;
 
-                    sonicAoA0Drag = -(float)(cPSonicForward * (curArea - prevArea)) + 0.3f * hypersonicDragForward * hypersonicDragForwardFrac;
-                    sonicAoA180Drag = (float)(cPSonicBackward * (curArea - nextArea)) + sonicBaseDrag - 0.3f * hypersonicDragBackward * hypersonicDragBackwardFrac;
+                    sonicAoA0Drag = -(float)(cPSonicForward * (areaForForces)) + 0.3f * hypersonicDragForward * hypersonicDragForwardFrac;
+                    sonicAoA0Drag *= (1 - lowFinenessRatioBlendFactor);      //at high finenessRatios, use the entire above section for sonic drag
+                    sonicAoA0Drag += hypersonicDragForward * hypersonicDragForwardFrac * lowFinenessRatioBlendFactor * 1.4f;     //at very low finenessRatios, use a boosted version of the hypersonic drag
+
+                    sonicAoA180Drag = (float)(cPSonicBackward * (-areaForForces)) + sonicBaseDrag - 0.3f * hypersonicDragBackward * hypersonicDragBackwardFrac;
+                    sonicAoA180Drag *= (1 - lowFinenessRatioBlendFactor);      //at high finenessRatios, use the entire above section for sonic drag
+                    sonicAoA180Drag += (-hypersonicDragBackward * hypersonicDragBackwardFrac * 1.4f + sonicBaseDrag) * lowFinenessRatioBlendFactor;     //at very low finenessRatios, use a boosted version of the hypersonic drag
                     //if(i == 0)
                     //    sonicAoA180Drag += (float)(cPSonicBackward * (curArea)) + sonicBaseDrag - hypersonicDragBackward * 0.3f * hypersonicDragBackwardFrac;
                 }
                 else if (sonicBaseDrag < 0)
                 {
-                    xForcePressureAoA0.SetPoint(0, new Vector3d(_criticalMach, (sonicBaseDrag * 0.2f + (0.325f * hypersonicDragForward * hypersonicDragForwardFrac)) * lowFinenessRatioSubsonicFactor, 0));
-                    xForcePressureAoA180.SetPoint(0, new Vector3d(_criticalMach, -(0.325f * hypersonicDragBackward * hypersonicDragBackwardFrac) * lowFinenessRatioSubsonicFactor, 0));
+                    xForcePressureAoA0.SetPoint(0, new Vector3d(_criticalMach, (sonicBaseDrag * 0.2f + (0.325f * hypersonicDragForward * hypersonicDragForwardFrac)) * lowFinenessRatioFactor, 0));
+                    xForcePressureAoA180.SetPoint(0, new Vector3d(_criticalMach, -(0.325f * hypersonicDragBackward * hypersonicDragBackwardFrac) * lowFinenessRatioFactor, 0));
 
                     hypersonicDragBackwardFrac += 1f;       //avg fracs with 1 to get intermediate frac
                     hypersonicDragBackwardFrac *= 0.5f;
@@ -1294,15 +1302,21 @@ namespace FerramAerospaceResearch.FARAeroComponents
                     hypersonicDragForwardFrac += 1f;
                     hypersonicDragForwardFrac *= 0.5f;
 
-                    sonicAoA0Drag = -(float)(cPSonicForward * (curArea - prevArea)) + sonicBaseDrag + 0.3f * hypersonicDragForward * hypersonicDragForwardFrac;
-                    sonicAoA180Drag = (float)(cPSonicBackward * (curArea - nextArea)) - 0.3f * hypersonicDragBackward * hypersonicDragBackwardFrac;
+                    sonicAoA0Drag = -(float)(cPSonicForward * (areaForForces)) + sonicBaseDrag + 0.3f * hypersonicDragForward * hypersonicDragForwardFrac;
+                    sonicAoA0Drag *= (1 - lowFinenessRatioBlendFactor);      //at high finenessRatios, use the entire above section for sonic drag
+                    sonicAoA0Drag += (hypersonicDragForward * hypersonicDragForwardFrac * 1.4f + sonicBaseDrag) * lowFinenessRatioBlendFactor;     //at very low finenessRatios, use a boosted version of the hypersonic drag
+
+                    sonicAoA180Drag = (float)(cPSonicBackward * (-areaForForces)) - 0.3f * hypersonicDragBackward * hypersonicDragBackwardFrac;
+                    sonicAoA180Drag *= (1 - lowFinenessRatioBlendFactor);      //at high finenessRatios, use the entire above section for sonic drag
+                    sonicAoA180Drag += (-hypersonicDragBackward * hypersonicDragBackwardFrac * 1.4f) * lowFinenessRatioBlendFactor;     //at very low finenessRatios, use a boosted version of the hypersonic drag
+
                     //if (i == numSections)
                     //    sonicAoA0Drag += -(float)(cPSonicForward * (-curArea)) + sonicBaseDrag + hypersonicDragForward * 0.3f * hypersonicDragForwardFrac;
                 }
                 else
                 {
-                    xForcePressureAoA0.SetPoint(0, new Vector3d(_criticalMach, (0.325f * hypersonicDragForward * hypersonicDragForwardFrac) * lowFinenessRatioSubsonicFactor, 0));
-                    xForcePressureAoA180.SetPoint(0, new Vector3d(_criticalMach, -(0.325f * hypersonicDragBackward * hypersonicDragBackwardFrac) * lowFinenessRatioSubsonicFactor, 0));
+                    xForcePressureAoA0.SetPoint(0, new Vector3d(_criticalMach, (0.325f * hypersonicDragForward * hypersonicDragForwardFrac) * lowFinenessRatioFactor, 0));
+                    xForcePressureAoA180.SetPoint(0, new Vector3d(_criticalMach, -(0.325f * hypersonicDragBackward * hypersonicDragBackwardFrac) * lowFinenessRatioFactor, 0));
 
                     hypersonicDragBackwardFrac += 1f;       //avg fracs with 1 to get intermediate frac
                     hypersonicDragBackwardFrac *= 0.5f;
@@ -1310,8 +1324,13 @@ namespace FerramAerospaceResearch.FARAeroComponents
                     hypersonicDragForwardFrac += 1f;
                     hypersonicDragForwardFrac *= 0.5f;
 
-                    sonicAoA0Drag = -(float)(cPSonicForward * (curArea - prevArea)) + 0.3f * hypersonicDragForward * hypersonicDragForwardFrac;
-                    sonicAoA180Drag = (float)(cPSonicBackward * (curArea - nextArea)) - 0.3f * hypersonicDragBackward * hypersonicDragBackwardFrac;
+                    sonicAoA0Drag = -(float)(cPSonicForward * (areaForForces)) + 0.3f * hypersonicDragForward * hypersonicDragForwardFrac;
+                    sonicAoA0Drag *= (1 - lowFinenessRatioBlendFactor);      //at high finenessRatios, use the entire above section for sonic drag
+                    sonicAoA0Drag += hypersonicDragForward * hypersonicDragForwardFrac * lowFinenessRatioBlendFactor * 1.4f;     //at very low finenessRatios, use a boosted version of the hypersonic drag
+
+                    sonicAoA180Drag = (float)(cPSonicBackward * (-areaForForces)) - 0.3f * hypersonicDragBackward * hypersonicDragBackwardFrac;
+                    sonicAoA180Drag *= (1 - lowFinenessRatioBlendFactor);      //at high finenessRatios, use the entire above section for sonic drag
+                    sonicAoA180Drag += (-hypersonicDragBackward * hypersonicDragBackwardFrac * 1.4f) * lowFinenessRatioBlendFactor;     //at very low finenessRatios, use a boosted version of the hypersonic drag
                 }
                 float diffSonicHyperAoA0 = Math.Abs(sonicAoA0Drag) - Math.Abs(hypersonicDragForward);
                 float diffSonicHyperAoA180 = Math.Abs(sonicAoA180Drag) - Math.Abs(hypersonicDragBackward);
@@ -1364,7 +1383,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
                     surfaceArea += areas.iN + areas.iP + areas.jN + areas.jP + areas.kN + areas.kP;
 
                     Part key = pair.Key;
-                    if (key == null)
+                    if ((object)key == null)
                         continue;
 
                     if (!key.Modules.Contains("FARAeroPartModule"))
@@ -1443,9 +1462,15 @@ namespace FerramAerospaceResearch.FARAeroComponents
                         }
                     }
             }
-            foreach (KeyValuePair<FARAeroPartModule, FARAeroPartModule.ProjectedArea> pair in _moduleAndAreasDict)
+            if (_moduleAndAreasDict.Count > 0)
             {
-                pair.Key.SetProjectedArea(pair.Value, _localToWorldMatrix);
+                VoxelizationThreadpool.Instance.RunOnMainThread(() =>
+                {
+                    foreach (KeyValuePair<FARAeroPartModule, FARAeroPartModule.ProjectedArea> pair in _moduleAndAreasDict)
+                    {
+                        pair.Key.SetProjectedArea(pair.Value, _localToWorldMatrix);
+                    }
+                });
             }
 
             //_newAeroModules = tmpAeroModules.ToList();        //this method creates lots of garbage
@@ -1470,15 +1495,19 @@ namespace FerramAerospaceResearch.FARAeroComponents
 
             _newUnusedAeroModules.Clear();
 
-            for (int i = 0; i < _currentGeoModules.Count; i++)
+            var existingParts = new bool[_currentGeoModules.Count];
+            VoxelizationThreadpool.Instance.RunOnMainThread(() =>
             {
-                if (!_currentGeoModules[i])
-                    continue;
+                for (int i = 0; i < _currentGeoModules.Count; i++)
+                {
+                    if (!_currentGeoModules[i])
+                        continue;
 
-                FARAeroPartModule aeroModule = _currentGeoModules[i].GetComponent<FARAeroPartModule>();
-                if (aeroModule != null && !tmpAeroModules.Contains(aeroModule))
-                    _newUnusedAeroModules.Add(aeroModule);
-            }
+                    FARAeroPartModule aeroModule = _currentGeoModules[i].GetComponent<FARAeroPartModule>();
+                    if (aeroModule != null && !tmpAeroModules.Contains(aeroModule))
+                        _newUnusedAeroModules.Add(aeroModule);
+                }
+            });
             //UpdateSonicDragArea();
         }
 
@@ -1492,7 +1521,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
             for (int i = 0; i < _newAeroSections.Count; i++)
             {
                 FARAeroSection a = _newAeroSections[i];
-                a.PredictionCalculateAeroForces(2f, 1f, 50000f, 0.005f, worldMainAxis, center);
+                a.PredictionCalculateAeroForces(2f, 1f, 50000f, 0, 0.005f, worldMainAxis, center);
             }
 
             _sonicDragArea = Vector3.Dot(center.force, worldMainAxis) * -1000;
@@ -1530,6 +1559,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
             double machTest = 1.2;
             double beta = Math.Sqrt(machTest * machTest - 1);
 
+            double cP90 = CalcMaxCp(machTest);
             //double noseAreaSlope = (vehicleCrossSection[front].area) / sectionThickness;
 
             for (int i = front; i <= back; i++)
@@ -1541,7 +1571,28 @@ namespace FerramAerospaceResearch.FARAeroComponents
                 cP = AdjustVelForFinitePressure(cP);
                 cP *= -2;
                 if (cP < 0)
-                    cP = AdjustCpForNonlinearEffects(cP, beta, machTest);
+                {
+                    double firstDerivArea;
+                    if(i == front)
+                    {
+                        firstDerivArea = vehicleCrossSection[i].area - vehicleCrossSection[i+1].area;
+                        firstDerivArea /= sectionThickness;
+                    }
+                    else if (i == back)
+                    {
+                        firstDerivArea = vehicleCrossSection[i].area - vehicleCrossSection[i+1].area;
+                        firstDerivArea /= sectionThickness;
+                    }
+                    else
+                    {
+                        firstDerivArea = vehicleCrossSection[i-1].area - vehicleCrossSection[i+1].area;
+                        firstDerivArea /= sectionThickness;
+                        firstDerivArea *= 0.5;
+                    }
+                    cP = AdjustCpForNonlinearEffects(cP, vehicleCrossSection[i].area, firstDerivArea, beta, machTest);
+                }
+                if (cP > cP90)
+                    cP = cP90;
 
                 vehicleCrossSection[i].cpSonicForward = cP;
             }
@@ -1557,7 +1608,29 @@ namespace FerramAerospaceResearch.FARAeroComponents
                 cP = AdjustVelForFinitePressure(cP);
                 cP *= -2;
                 if (cP < 0)
-                    cP = AdjustCpForNonlinearEffects(cP, beta, machTest);
+                {
+                    double firstDerivArea;
+                    if (i == front)
+                    {
+                        firstDerivArea = vehicleCrossSection[i].area - vehicleCrossSection[i + 1].area;
+                        firstDerivArea /= -sectionThickness;
+                    }
+                    else if (i == back)
+                    {
+                        firstDerivArea = vehicleCrossSection[i].area - vehicleCrossSection[i + 1].area;
+                        firstDerivArea /= -sectionThickness;
+                    }
+                    else
+                    {
+                        firstDerivArea = vehicleCrossSection[i - 1].area - vehicleCrossSection[i + 1].area;
+                        firstDerivArea /= -sectionThickness;
+                        firstDerivArea *= 0.5;
+                    }
+                    cP = AdjustCpForNonlinearEffects(cP, vehicleCrossSection[i].area, firstDerivArea, beta, machTest);
+                }
+
+                if (cP > cP90)
+                    cP = cP90;
 
                 vehicleCrossSection[i].cpSonicBackward = cP;
             }
@@ -1658,12 +1731,48 @@ namespace FerramAerospaceResearch.FARAeroComponents
             return newVel;
         }
 
-        private double AdjustCpForNonlinearEffects(double cP, double beta, double freestreamMach)
+        private double CalcMaxCp(double mach)
+        {
+
+            double cP90;
+            double machSqr = mach * mach;
+            cP90 = 7.0 * machSqr - 1.0;
+            cP90 = Math.Pow(6.0 / cP90, 2.5);
+            cP90 *= Math.Pow(1.2 * machSqr, 3.5);
+            cP90--;
+            cP90 /= 0.7 * machSqr;
+
+            return cP90;
+        }
+
+        private double AdjustCpForNonlinearEffects(double cP, double area, double firstDerivArea, double beta, double freestreamMach)
         {
             double nuFreestream = PrandtlMeyerExpansionAngle(freestreamMach, freestreamMach);
-            double deflectionAngle = 0.5 * cP * beta;
+            double deflectionAngle = CalculateEquivalentDeflectionAngle(cP, area, firstDerivArea, freestreamMach, beta);
 
             return cPPrandtlMeyerExpansion(freestreamMach, nuFreestream, deflectionAngle);
+        }
+
+        double CalculateEquivalentDeflectionAngle(double linCp, double area, double firstDerivArea, double machNumber, double beta)
+        {
+            double turnAngle = area * Math.PI;
+            turnAngle = 2.0 * Math.Sqrt(turnAngle);
+            turnAngle = firstDerivArea / turnAngle;
+            turnAngle = Math.Atan(turnAngle);
+
+            double uI = linCp * -0.5;
+            double uO = AdjustVelForFinitePressure(-turnAngle / beta);
+
+            double machI, machO;
+            machI = machNumber * (1.0 + uI);
+            machO = machNumber * (1.0 + uO);
+
+            double nuI, nuO;
+            nuI = PrandtlMeyerExpansionAngle(machI, machNumber);
+            nuO = PrandtlMeyerExpansionAngle(machO, machNumber);
+
+            double totalTurnAngle = turnAngle + nuO - nuI;
+            return totalTurnAngle;
         }
 
         double cPPrandtlMeyerExpansion(double machNumber, double nuFreestream, double deflectionAngle)
@@ -1880,7 +1989,7 @@ namespace FerramAerospaceResearch.FARAeroComponents
             maxCritMachAdjustmentFactor = 0.5 + (_maxCrossSectionArea - 0.5 * (0.5 * maxAbsRateOfChange + 0.3 * maxSecondDeriv)) / maxCritMachAdjustmentFactor;     //will vary based on x = maxAbsRateOfChange / _maxCrossSectionArea from 1 @ x = 0 to 0.5 as x -> infinity
 
             double critAdjustmentFactor = 4 + finenessRatio;
-            critAdjustmentFactor = 6 * (1 - maxCritMachAdjustmentFactor) / critAdjustmentFactor;
+            critAdjustmentFactor = 3.5 * (1 - maxCritMachAdjustmentFactor) / critAdjustmentFactor;
             critAdjustmentFactor += maxCritMachAdjustmentFactor;
 
             if (critAdjustmentFactor > 1)

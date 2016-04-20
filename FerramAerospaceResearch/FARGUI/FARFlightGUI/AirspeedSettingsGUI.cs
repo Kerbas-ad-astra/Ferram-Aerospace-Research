@@ -1,5 +1,5 @@
 ﻿/*
-Ferram Aerospace Research v0.15.5.4 "Hoerner"
+Ferram Aerospace Research v0.15.5.7 "Johnson"
 =========================
 Aerodynamics model for Kerbal Space Program
 
@@ -44,6 +44,7 @@ Copyright 2015, Michael Ferrara, aka Ferram4
 
 using System;
 using System.Collections.Generic;
+using KSP.UI.Screens.Flight;
 using UnityEngine;
 
 
@@ -129,7 +130,7 @@ namespace FerramAerospaceResearch.FARGUI.FARFlightGUI
             if (FlightGlobals.ActiveVessel != _vessel)
                 return;
             //DaMichel: Keep our fingers off of this also if there is no atmosphere (staticPressure <= 0)
-            if (FlightUIController.speedDisplayMode != FlightUIController.SpeedDisplayModes.Surface || _vessel.atmDensity <= 0)
+            if (FlightGlobals.speedDisplayMode != FlightGlobals.SpeedDisplayModes.Surface || _vessel.atmDensity <= 0)
                 return;
 
             double unitConversion = 1;
@@ -160,14 +161,20 @@ namespace FerramAerospaceResearch.FARGUI.FARFlightGUI
                 if (velMode == SurfaceVelMode.IAS)
                 {
                     caption = "IAS";
-                    double densityRatio = (FARAeroUtil.GetCurrentDensity(_vessel.mainBody, _vessel.altitude, false) / 1.225);
-                    double pressureRatio = FARAeroUtil.StagnationPressureCalc(_vessel.mach);
-                    velString = (_vessel.srfSpeed * Math.Sqrt(densityRatio) * pressureRatio * unitConversion).ToString("F1") + unitString;
+                    //double densityRatio = (FARAeroUtil.GetCurrentDensity(_vessel) / 1.225);
+                    double pressureRatio = FARAeroUtil.RayleighPitotTubeStagPressure(_vessel.mach);     //stag pressure at pitot tube face / ambient pressure
+
+                    double velocity = pressureRatio - 1;
+                    velocity *= _vessel.staticPressurekPa * 1000 * 2;
+                    velocity /= 1.225;
+                    velocity = Math.Sqrt(velocity);
+
+                    velString = (velocity * unitConversion).ToString("F1") + unitString;
                 }
                 else if (velMode == SurfaceVelMode.EAS)
                 {
                     caption = "EAS";
-                    double densityRatio = (FARAeroUtil.GetCurrentDensity(_vessel.mainBody, _vessel.altitude, false) / 1.225);
+                    double densityRatio = (FARAeroUtil.GetCurrentDensity(_vessel) / 1.225);
                     velString = (_vessel.srfSpeed * Math.Sqrt(densityRatio) * unitConversion).ToString("F1") + unitString;
                 }
                 else// if (velMode == SurfaceVelMode.MACH)
@@ -178,12 +185,12 @@ namespace FerramAerospaceResearch.FARGUI.FARFlightGUI
             }
             active = true;
 
-            FlightUIController UI = FlightUIController.fetch;
-            if (UI.spdCaption == null || UI.speed == null)
+            SpeedDisplay UI = SpeedDisplay.Instance;
+            if (UI.textSpeed == null || UI.textTitle == null)
                 return;
 
-            UI.spdCaption.text = caption;
-            UI.speed.text = velString;
+            UI.textTitle.text = caption;
+            UI.textSpeed.text = velString;
         }
 
         public void SaveSettings()
